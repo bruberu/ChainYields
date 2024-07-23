@@ -13,7 +13,7 @@ output them for various common fission reactions.
 
 If you don't see your preferred data in the tables below, you will have to deal with some of the Java code behind this
 directly. Load this into a Java IDE (IntelliJ is pretty good), change lines 13 and 14 of Main.java to have your
-preferred isotope (as long as it's in the nds.iaea.org API) and year cutoff (the minimum number of years required for an
+preferred isotope (as long as it's in the nds.iaea.org API) and year cutoff (the minimum number of years of its half-life required for an
 isotope to be considered stable enough).
 
 It will prompt you occasionally to give the symbol of certain elements, such as silver (Ag), europium (Eu), and so on.
@@ -22,7 +22,7 @@ You may also see a log for a decay mode not being implemented, if you choose a p
 to start with. If so, just send an issue here.
 
 It may take up to a few minutes to get the results on the first time, as at least a hundred CSV files will be downloaded
-from the nds.iaea.org API. Afterwards, it will output a table of fission yields in percentages into the console.
+from the nds.iaea.org API. Afterwards, it will output a table of fission yields in percentages into the console. These percentages will add up to just under 200%, which is fine, since you get, well, two atoms per fission, and the extremely rare fission byproducts have been filtered out. 
 
 ### Tables
 
