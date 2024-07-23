@@ -22,7 +22,7 @@ You may also see a log for a decay mode not being implemented, if you choose a p
 to start with. If so, just send an issue here.
 
 It may take up to a few minutes to get the results on the first time, as at least a hundred CSV files will be downloaded
-from the nds.iaea.org API. Afterwards, it will output a table of fission yields in percentages into the console. These percentages will add up to just under 200%, which is fine, since you get, well, two atoms per fission, and the extremely rare fission byproducts have been filtered out. 
+from the nds.iaea.org API. Afterwards, it will output a table of fission yields into the console. These yields will add up to just under 2, which is fine, since you get, well, two atoms per fission, and the extremely rare fission byproducts have been filtered out. 
 
 ### Tables
 
