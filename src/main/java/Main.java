@@ -10,11 +10,14 @@ import java.nio.file.StandardCopyOption;
 import java.util.*;
 
 public class Main {
+    public static String ISOTOPE = "241pu";
+    public static double YEAR_CUTOFF = 31;
+
     public static Map<Integer, String> ELEMENTS = new HashMap<>();
     public static Map<Isotope, IsotopeData> ISOTOPES = new HashMap<>();
 
     public static void main(String[] args) throws IOException {
-        Map<IsotopeData, Double> products = getFissions("239pu");
+        Map<IsotopeData, Double> products = getFissions(ISOTOPE);
 
         while (true) {
             boolean updated = false;
@@ -37,19 +40,9 @@ public class Main {
                 products.remove(toRemove1);
             }
             products.putAll(toAdd);
-
-            System.out.println("Partial:");
-            for (Map.Entry<IsotopeData, Double> product : products.entrySet()) {
-                System.out.println(product.getKey().isotope.toString() + " " + product.getValue());
-            }
             if (!updated) {
                 break;
             }
-        }
-
-        System.out.println("Results:");
-        for (Map.Entry<IsotopeData, Double> product : products.entrySet()) {
-            System.out.println(product.getKey().isotope.toString() + " " + product.getValue());
         }
 
         double[] z = new double[100];
@@ -60,19 +53,7 @@ public class Main {
 
         for (int i = 0; i < z.length; i++) {
             if (z[i] > 0) {
-                System.out.println(String.format(Locale.ENGLISH, "%6f", z[i] * 100) + " " + ELEMENTS.get(i));
-            }
-        }
-
-        double[] m = new double[100];
-
-        for (Map.Entry<IsotopeData, Double> product : products.entrySet()) {
-            z[product.getKey().isotope.protons] += product.getKey().isotope.massNumber * product.getValue();
-        }
-
-        for (int i = 0; i < z.length; i++) {
-            if (z[i] > 0) {
-                System.out.println(String.format(Locale.ENGLISH, "%6f", z[i]) + " " + ELEMENTS.get(i));
+                System.out.println("| " + ELEMENTS.get(i) + " | " + String.format(Locale.ENGLISH, "%6f", z[i]) + " |");
             }
         }
     }
@@ -176,7 +157,7 @@ public class Main {
         }
 
         public boolean isUnstable() {
-            return halfLife < 60 * 60 * 24 * 365 * 2;
+            return halfLife < 60 * 60 * 24 * 365 * YEAR_CUTOFF;
         }
     }
 
