@@ -2,46 +2,39 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVRecord;
 
 import java.io.*;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.function.Consumer;
 
 public class Main {
-    public static String ISOTOPE = "241pu";
-    public static double YEAR_CUTOFF = 31;
+    public static String ISOTOPE = "235u";
+    public static double YEAR_CUTOFF = 2;
 
     public static Map<Integer, String> ELEMENTS = new HashMap<>();
     public static Map<Isotope, IsotopeData> ISOTOPES = new HashMap<>();
 
     public static void main(String[] args) throws IOException {
-        Map<IsotopeData, Double> products = getFissions(ISOTOPE);
+        if (args.length < 1) {
+            System.out.println("Usage: java -jar isotope.jar <isotope>");
+        } else {
+            ISOTOPE = args[0];
+        }
 
-        while (true) {
-            boolean updated = false;
-            Map<IsotopeData, Double> toAdd = new HashMap<>();
-            List<IsotopeData> toRemove = new ArrayList<>();
-            for (Map.Entry<IsotopeData, Double> product : products.entrySet()) {
-                if (product.getKey().isUnstable()) {
-                    updated = true;
-                    for (Map.Entry<Isotope, Double> decay : product.getKey().decays.entrySet()) {
-                        if (decay.getValue() > 0.0001) {
-                            toAdd.put(getIsotope(decay.getKey()), product.getValue() * decay.getValue());
-                        }
-                    }
+        if (args.length > 1) {
+            YEAR_CUTOFF = Double.parseDouble(args[1]);
+        }
 
-                    toRemove.add(product.getKey());
-                }
-            }
+        Map<IsotopeData, Double> initProducts = getFissions(ISOTOPE);
+        Map<IsotopeData, Double> products = new HashMap<>();
 
-            for (IsotopeData toRemove1 : toRemove) {
-                products.remove(toRemove1);
-            }
-            products.putAll(toAdd);
-            if (!updated) {
-                break;
+        for (Map.Entry<IsotopeData, Double> product : initProducts.entrySet()) {
+            product.getKey().calculateChainDecays(YEAR_CUTOFF * 365.25 * 24 * 60 * 60);
+
+            for (Map.Entry<IsotopeData, Double> entry : product.getKey().chainDecays.entrySet()) {
+                products.put(entry.getKey(), products.getOrDefault(entry.getKey(), 0.0) + entry.getValue() * product.getValue());
             }
         }
 
@@ -76,19 +69,27 @@ public class Main {
         }
         BufferedReader br = new BufferedReader(new FileReader(f));
 
-        Iterable<CSVRecord> records = CSVFormat.DEFAULT.builder().setHeader(FissionHeaders.class).setSkipHeaderRecord(true).build().parse(br);
+        Iterable<CSVRecord> recordElements = CSVFormat.DEFAULT.builder().setHeader(FissionHeaders.class).setSkipHeaderRecord(true).build().parse(br);
 
         Map<IsotopeData, Double> products = new HashMap<>();
+        for (CSVRecord record : recordElements) {
+            int protons = Integer.parseInt(record.get(FissionHeaders.z));
+            ELEMENTS.put(protons, record.get(FissionHeaders.elem));
+        }
+
+        br.close();
+        br = new BufferedReader(new FileReader(f));
+        Iterable<CSVRecord> records = CSVFormat.DEFAULT.builder().setHeader(FissionHeaders.class).setSkipHeaderRecord(true).build().parse(br);
+
         for (CSVRecord record : records) {
             String thermal = record.get(FissionHeaders.independent_thermal_fy);
             if (!thermal.equals("independent_thermal_fy") && !thermal.isEmpty()) {
                 double thermalFy = Double.parseDouble(record.get(FissionHeaders.independent_thermal_fy));
                 if (thermalFy >= 0.0001) {
-                    int protons = Integer.parseInt(record.get(FissionHeaders.z));
                     int massNumber = Integer.parseInt(record.get(FissionHeaders.a));
+                    int protons = Integer.parseInt(record.get(FissionHeaders.z));
 
                     Isotope isotope = new Isotope(protons, massNumber);
-                    ELEMENTS.put(protons, record.get(FissionHeaders.elem));
                     ISOTOPES.put(isotope, new IsotopeData(isotope));
                     products.put(getIsotope(isotope), thermalFy);
                 }
@@ -100,8 +101,10 @@ public class Main {
 
     public static class IsotopeData {
         double halfLife = Double.MAX_VALUE;
-        Map<Isotope, Double> decays;
+        Map<IsotopeData, Double> decays;
         Isotope isotope;
+
+        Map<IsotopeData, Double> chainDecays;
 
         public IsotopeData(Isotope isotope) throws IOException {
             this.isotope = isotope;
@@ -130,10 +133,13 @@ public class Main {
             Iterable<CSVRecord> records = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).build().parse(br);
 
             for (CSVRecord record : records) {
-                if (record.get("half_life_sec").isEmpty()) {
+                if (record.get("half_life_sec").isEmpty() || record.get("half_life_sec").equals("STABLE")) {
                     continue;
                 }
                 halfLife = Double.parseDouble(record.get("half_life_sec"));
+
+                if (!isUnstable())
+                    continue;
 
                 if (!record.get("decay_1").isEmpty() && !record.get("decay_1_%").isEmpty()) {
                     decays.put(doDecay(record.get("decay_1"), isotope), Double.parseDouble(record.get("decay_1_%")) / 100);
@@ -154,10 +160,55 @@ public class Main {
             }
 
             br.close();
+            ISOTOPES.put(isotope, this);
         }
 
         public boolean isUnstable() {
-            return halfLife < 60 * 60 * 24 * 365 * YEAR_CUTOFF;
+            return halfLife < 1000 * 60 * 60 * 24 * 365.25;
+        }
+
+        public void calculateChainDecays(double sec) {
+            Tree<IsotopeData> tree = getTree();
+
+            chainDecays = new HashMap<>();
+            decayRates(chainDecays, tree, new ArrayList<>(), sec, 1);
+        }
+
+        public void decayRates(Map<IsotopeData, Double> rates, Tree<IsotopeData> current, List<Double> currentRates, double time, double factor) {
+            List<Double> copy = new ArrayList<>(currentRates);
+            copy.add(decayConstant(current.data.halfLife));
+            if (current.data.isUnstable()) {
+                for (Tree<IsotopeData> entry : current.children) {
+                    decayRates(rates, entry, copy, time, current.data.decays.get(entry.data) * factor);
+                }
+            }
+            if (rates.containsKey(current.data)) {
+                rates.put(current.data, rates.get(current.data) + bateman(copy, time) * factor);
+            } else {
+                rates.put(current.data, bateman(copy, time) * factor);
+            }
+        }
+
+        public Tree<IsotopeData> getTree() {
+            Tree<IsotopeData> tree = new Tree<>(this);
+            for (Map.Entry<IsotopeData, Double> entry : decays.entrySet()) {
+                tree.children.add(entry.getKey().getTree());
+            }
+            return tree;
+        }
+
+        public String toString() {
+            return isotope.toString();
+        }
+    }
+
+    public static class IsotopeQuantity {
+        public IsotopeData isotope;
+        public double amount;
+
+        public IsotopeQuantity(IsotopeData isotope, double amount) {
+            this.isotope = isotope;
+            this.amount = amount;
         }
     }
 
@@ -198,7 +249,11 @@ public class Main {
         });
     }
 
-    public static Isotope doDecay(String decay, Isotope isotope) {
+    public static IsotopeData doDecay(String decay, Isotope isotope) throws IOException {
+        return new IsotopeData(calcDecay(decay, isotope));
+    }
+
+    public static Isotope calcDecay(String decay, Isotope isotope) {
         if (decay.equals("A")) {
             return new Isotope(isotope.protons - 2, isotope.massNumber - 4);
         } else if (decay.equals("B-")) {
@@ -218,5 +273,46 @@ public class Main {
         }
         System.out.println("Decay not yet implemented for " + decay);
         return null;
+    }
+
+
+    public static double decayConstant(double halfLife) {
+        return Math.max(0, Math.log(2) / halfLife);
+    }
+
+    public static double bateman(List<Double> decayRates, double time) {
+        double product = 1;
+        for (int i = 0; i < decayRates.size() - 1; i++) {
+            product *= decayRates.get(i);
+        }
+        double sum = 0;
+        for (int i = 0; i < decayRates.size(); i++) {
+            double sectionProduct = 1;
+            for (int j = 0; j < decayRates.size(); j++) {
+                if (i != j) {
+                    double diff = decayRates.get(j) - decayRates.get(i);
+                    if (Math.abs(diff) < 0.0000000001) {
+                        diff = 0.0000000002 * Math.signum(diff);
+                        decayRates.set(Math.max(i, j), decayRates.get(Math.max(i, j)) + diff);
+                    }
+                    sectionProduct /= diff; // Should not blow up due to the forbidden thing
+                }
+            }
+
+            sum += sectionProduct * Math.exp(-decayRates.get(i) * time);
+        }
+        return sum * product;
+    }
+
+    public static class Tree<T> {
+        T data;
+        List<Tree<T>> children;
+
+        public Tree(T data) {
+            this.data = data;
+            this.children = new LinkedList<>();
+        }
+
+
     }
 }
