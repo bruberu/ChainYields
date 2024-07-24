@@ -12,13 +12,19 @@ output them for various common fission reactions.
 
 ### How to use
 
-If you don't see your preferred data in the tables below, you will have to deal with some of the Java code behind this
-directly. Load this into a Java IDE (IntelliJ is pretty good), change lines 13 and 14 of Main.java to have your
-preferred isotope (as long as it's in the nds.iaea.org API) and year cutoff (the minimum number of years of its half-life required for an
-isotope to be considered stable enough).
+If you don't see your preferred data in the tables below, you will have to build this yourself. You can download this git repository and run the below command (I think):
 
-It will prompt you occasionally to give the symbol of certain elements, such as silver (Ag), europium (Eu), and so on.
-Make sure you give the right symbol for the element!
+javac -classpath . src/main/java/Main.java
+
+Alternatively, you could build it using an available Java IDE.
+
+Once you get your jar file from the build output, you can run it like this:
+
+java -jar (the jar here) (isotope name, like (and defaulting to) "235u") (measurement year (defaulting to 2))
+
+The isotopes you can currently use are (according to https://www-nds.iaea.org/relnsd/vcharthtml/api_v0_guide.html): 232th or 233u or 235u or 238u or 237np or 239pu or 241pu or 241am. Bug them if you want more, but politely, please.
+
+It might prompt you occasionally to give the symbol of certain elements (although this is pretty rare now). Make sure you give the right symbol for the element!
 You may also see a log for a decay mode not being implemented, if you choose a particularly exotic fissionable isotope
 to start with. If so, just send an issue here.
 
@@ -26,6 +32,8 @@ It may take up to a few minutes to get the results on the first time, as at leas
 from the nds.iaea.org API. Afterwards, it will output a table of fission yields into the console. These yields will add up to just under 2, which is fine, since you get, well, two atoms per fission, and the extremely rare fission byproducts have been filtered out. 
 
 ### Tables
+
+These have all been calculated using this utility.
 
 #### U235
 
