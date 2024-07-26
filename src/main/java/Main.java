@@ -21,7 +21,7 @@ public class Main {
 
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {
-            System.out.println("Usage: java -jar isotope.jar <isotope> year -c");
+            System.out.println("Usage: java -jar isotope.jar <isotope> <year> -c");
         } else {
             if(Objects.equals(args[0], "-c")) {
                 cleanupDirs();
