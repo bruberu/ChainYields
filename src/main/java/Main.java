@@ -1,5 +1,6 @@
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVRecord;
+import org.apache.commons.io.FileUtils;
 
 import java.io.*;
 import java.net.URL;
@@ -16,15 +17,30 @@ public class Main {
     public static Map<Integer, String> ELEMENTS = new HashMap<>();
     public static Map<Isotope, IsotopeData> ISOTOPES = new HashMap<>();
 
+    public static boolean cleanup = false;
+
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {
-            System.out.println("Usage: java -jar isotope.jar <isotope>");
+            System.out.println("Usage: java -jar isotope.jar <isotope> year -c");
         } else {
+            if(Objects.equals(args[0], "-c")) {
+                cleanupDirs();
+                return;
+            }
             ISOTOPE = args[0];
         }
 
         if (args.length > 1) {
-            YEAR_CUTOFF = Double.parseDouble(args[1]);
+            try {
+                YEAR_CUTOFF = Double.parseDouble(args[1]);
+            }
+            catch (NumberFormatException e) {
+                checkClean(1, args);
+            }
+        }
+
+        if(args.length > 2) {
+            checkClean(2, args);
         }
 
         Map<IsotopeData, Double> initProducts = getFissions(ISOTOPE);
@@ -49,6 +65,23 @@ public class Main {
                 System.out.println("| " + ELEMENTS.get(i) + " | " + String.format(Locale.ENGLISH, "%6f", z[i]) + " |");
             }
         }
+
+        if(cleanup) {
+            cleanupDirs();
+        }
+    }
+
+    public static void cleanupDirs() throws IOException {
+        FileUtils.deleteDirectory(new File("./fission"));
+        FileUtils.deleteDirectory(new File("./base"));
+    }
+
+    public static void checkClean(int index, String[] args) {
+        if(Objects.equals(args[index], "-c")) {
+            cleanup = true;
+        } else {
+            throw new IllegalArgumentException("To enable cleanup, use -c!");
+        }
     }
 
     public enum FissionHeaders {
@@ -56,6 +89,9 @@ public class Main {
     }
 
     public static Map<IsotopeData, Double> getFissions(String fissile) throws IOException {
+
+        new File("./fission").mkdirs();
+
         File f = new File("./fission/fission" + fissile + ".csv");
 
         if (!f.exists()) {
@@ -109,6 +145,9 @@ public class Main {
         public IsotopeData(Isotope isotope) throws IOException {
             this.isotope = isotope;
             decays = new HashMap<>();
+
+            new File("./base").mkdirs();
+
             File f = new File("./base/base" + isotope + ".csv");
 
             if (!f.exists()) {
