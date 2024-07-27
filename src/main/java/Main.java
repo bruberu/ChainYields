@@ -11,8 +11,8 @@ import java.util.*;
 import java.util.function.Consumer;
 
 public class Main {
-    public static String ISOTOPE = "235u";
-    public static double YEAR_CUTOFF = 2;
+    public static String ISOTOPE = "241pu";
+    public static double YEAR_CUTOFF = 10000;
 
     public static Map<Integer, String> ELEMENTS = new HashMap<>();
     public static Map<Isotope, IsotopeData> ISOTOPES = new HashMap<>();
@@ -21,7 +21,8 @@ public class Main {
 
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {
-            System.out.println("Usage: java -jar isotope.jar <isotope> <year> -c");
+            System.out.println("Usage: java -jar isotope.jar -c <isotope> <year>");
+            System.out.println("(To just clean up the created directories, use -c.)");
         } else {
             if(Objects.equals(args[0], "-c")) {
                 cleanupDirs();
